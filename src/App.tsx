@@ -100,7 +100,7 @@ function App() {
             <Gallery className="w-8 h-8 text-blue-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Kesseh Galleries
+            Kesseh Galleries - Cloud Image Management
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Upload, manage, and share your images with beautiful galleries
