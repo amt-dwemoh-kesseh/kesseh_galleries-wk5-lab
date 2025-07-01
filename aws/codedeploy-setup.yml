@@ -96,6 +96,9 @@ Resources:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: kesseh-galleries-dg
       ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
       DeploymentConfigName: CodeDeployDefault.ECSBlueGreenCanary10Percent5Minutes
       BlueGreenDeploymentConfiguration:
         TerminateBlueInstancesOnDeploymentSuccess:
