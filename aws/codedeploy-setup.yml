@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CodeDeploy setup for Blue-Green ECS deployments'
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: kesseh-galleries-cluster
+    Description: ECS Cluster name
+  
+  ServiceName:
+    Type: String
+    Default: kesseh-galleries-service
+    Description: ECS Service name
+  
+  ALBTargetGroupBlue:
+    Type: String
+    Default: kesseh-galleries-tg-blue
+    Description: Blue target group name
+  
+  ALBTargetGroupGreen:
+    Type: String
+    Default: kesseh-galleries-tg-green
+    Description: Green target group name
+  
+  ALBListenerArn:
+    Type: String
+    Description: ALB Listener ARN for production traffic
+
+Resources:
+  # S3 Bucket for CodeDeploy artifacts
+  CodeDeployArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: kesseh-galleries-codedeploy-artifacts
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 30
+
+  # CodeDeploy Service Role
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kesseh-galleries-codedeploy-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+      Policies:
+        - PolicyName: ECSBlueGreenDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:CreateTaskSet
+                  - ecs:DeleteTaskSet
+                  - ecs:DescribeServices
+                  - ecs:UpdateServicePrimaryTaskSet
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeListeners
+                  - elasticloadbalancing:ModifyListener
+                  - elasticloadbalancing:DescribeRules
+                  - elasticloadbalancing:ModifyRule
+                  - lambda:InvokeFunction
+                  - cloudwatch:DescribeAlarms
+                  - sns:Publish
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: '*'
+
+  # CodeDeploy Application
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: kesseh-galleries-app
+      ComputePlatform: ECS
+
+  # CodeDeploy Deployment Group
+  CodeDeployDeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: kesseh-galleries-dg
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentConfigName: CodeDeployDefault.ECSBlueGreenCanary10Percent5Minutes
+      BlueGreenDeploymentConfiguration:
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+        GreenFleetProvisioningOption:
+          Action: COPY_AUTO_SCALING_GROUP
+      ECSServices:
+        - ServiceName: !Ref ServiceName
+          ClusterName: !Ref ClusterName
+      LoadBalancerInfo:
+        TargetGroupInfoList:
+          - Name: !Ref ALBTargetGroupBlue
+          - Name: !Ref ALBTargetGroupGreen
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_ALARM
+
+  # CloudWatch Alarms for Auto Rollback
+  HighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: kesseh-galleries-high-error-rate
+      AlarmDescription: High error rate detected
+      MetricName: HTTPCode_Target_5XX_Count
+      Namespace: AWS/ApplicationELB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: TargetGroup
+          Value: !Sub 'targetgroup/${ALBTargetGroupGreen}/*'
+
+  # SNS Topic for Deployment Notifications
+  DeploymentNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: kesseh-galleries-deployment-notifications
+      DisplayName: Kesseh Galleries Deployment Notifications
+
+Outputs:
+  CodeDeployApplication:
+    Description: CodeDeploy Application Name
+    Value: !Ref CodeDeployApplication
+    Export:
+      Name: !Sub '${AWS::StackName}-CodeDeployApplication'
+
+  CodeDeployDeploymentGroup:
+    Description: CodeDeploy Deployment Group Name
+    Value: !Ref CodeDeployDeploymentGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-CodeDeployDeploymentGroup'
+
+  CodeDeployServiceRole:
+    Description: CodeDeploy Service Role ARN
+    Value: !GetAtt CodeDeployServiceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CodeDeployServiceRole'
+
+  ArtifactsBucket:
+    Description: S3 Bucket for CodeDeploy artifacts
+    Value: !Ref CodeDeployArtifactsBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-ArtifactsBucket'
