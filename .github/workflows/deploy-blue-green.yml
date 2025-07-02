@@ -134,12 +134,6 @@ jobs:
                     ContainerName: "${{ env.CONTAINER_NAME }}"
                     ContainerPort: 3001
                   PlatformVersion: "LATEST"
-          Hooks:
-            - AfterAllowTraffic: "AfterAllowTrafficHook"
-          BlueGreenDeploymentConfiguration:
-            TerminateBlueInstancesOnDeploymentSuccess:
-              Action: TERMINATE
-              TerminationWaitTimeInMinutes: 5
           EOF
 
           echo "✅ appspec.yaml created:"
