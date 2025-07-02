@@ -107,7 +107,7 @@ jobs:
         id: register-task-def
         run: |
           echo "📝 Writing rendered task definition to file..."
-          printf "%s" '${{ steps.render-task.outputs.task-definition }}' > rendered-task-def.json
+          printf "%s" "${{ steps.render-task.outputs.task-definition }}" > rendered-task-def.json
 
           echo "✅ Task definition file:"
           cat rendered-task-def.json | jq .
