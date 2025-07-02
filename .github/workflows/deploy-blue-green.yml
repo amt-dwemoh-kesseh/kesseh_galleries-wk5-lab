@@ -105,13 +105,9 @@ jobs:
 
       - name: Register new task definition
         id: register-task-def
-        run: |
-          echo "${{ steps.render-task.outputs.task-definition }}" > rendered-task-def.json
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://rendered-task-def.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          echo "new-task-def-arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+        uses: aws-actions/amazon-ecs-register-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-task.outputs.task-definition }}
 
       - name: Create appspec.yaml
         run: |
