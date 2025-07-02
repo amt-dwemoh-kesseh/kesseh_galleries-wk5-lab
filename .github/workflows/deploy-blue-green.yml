@@ -122,18 +122,22 @@ jobs:
 
       - name: Create appspec.yaml
         run: |
+          echo "📄 Writing appspec.yaml..."
           cat > appspec.yaml <<EOF
           version: 0.0
           Resources:
             - TargetService:
                 Type: AWS::ECS::Service
                 Properties:
-                  TaskDefinition: "${{ env.task-definition-arn }}"
+                  TaskDefinition: "${{ steps.register-task-def.outputs.task-definition-arn }}"
                   LoadBalancerInfo:
                     ContainerName: "${{ env.CONTAINER_NAME }}"
                     ContainerPort: 3001
                   PlatformVersion: "LATEST"
           EOF
+
+          echo "✅ appspec.yaml created:"
+          cat appspec.yaml
 
       - name: Package and Upload to S3
         run: |
