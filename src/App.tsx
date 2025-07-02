@@ -173,7 +173,7 @@ function App() {
       <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="container mx-auto px-4 py-8">
           <div className="text-center text-gray-600">
-            <p>&copy; 2025 Kesseh Galleries. Powered by AWS S3.</p>
+            <p>&copy; 2025 Kesseh Galleries. Powered by S3.</p>
           </div>
         </div>
       </footer>

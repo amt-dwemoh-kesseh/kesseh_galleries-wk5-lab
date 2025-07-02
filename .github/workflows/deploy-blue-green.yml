@@ -152,6 +152,9 @@ jobs:
             --deployment-group-name $CODEDEPLOY_DEPLOYMENT_GROUP \
             --s3-location bucket=$S3_BUCKET,key=deployments/deployment-${{ github.sha }}.zip,bundleType=zip \
             --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
+            --auto-rollback-configuration enabled=true,events=DEPLOYMENT_FAILURE \
+            --deployment-style deploymentType=BLUE_GREEN,deploymentOption=WITH_TRAFFIC_CONTROL \
+            --blue-green-deployment-configuration "terminateBlueInstancesOnDeploymentSuccess={action=TERMINATE,terminationWaitTimeInMinutes=0}" \
             --query deploymentId --output text)
           echo "deployment-id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
           echo "Deployment started: $DEPLOYMENT_ID"
@@ -159,6 +162,28 @@ jobs:
       - name: Wait for Deployment to Complete
         run: |
           aws deploy wait deployment-successful --deployment-id ${{ steps.deploy.outputs.deployment-id }}
+
+      - name: Debug failed deployment (if any)
+        if: failure()
+        run: |
+          echo "⚠️ Deployment failed. Fetching debug info..."
+
+          echo "🧾 Deployment Info:"
+          aws deploy get-deployment \
+            --deployment-id ${{ steps.deploy.outputs.deployment-id }} \
+            --query 'deploymentInfo.[deploymentId,status,errorInformation,message]' \
+            --output table
+
+          echo "📋 Listing deployment instances (if any):"
+          aws deploy list-deployment-instances \
+            --deployment-id ${{ steps.deploy.outputs.deployment-id }} \
+            --output table || echo "No instances found or ECS deployment in use"
+
+          echo "📌 Listing events:"
+          aws deploy get-deployment \
+            --deployment-id ${{ steps.deploy.outputs.deployment-id }} \
+            --query 'deploymentInfo.deploymentOverview' \
+            --output json
 
       - name: Verify Deployment
         run: |
