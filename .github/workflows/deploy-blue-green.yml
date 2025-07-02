@@ -106,20 +106,19 @@ jobs:
       - name: Register new task definition
         id: register-task-def
         run: |
-          echo "📝 Writing rendered task definition to file..."
-          printf "%s" "${{ steps.render-task.outputs.task-definition }}" > rendered-task-def.json
-
-          echo "✅ Task definition file:"
-          cat rendered-task-def.json | jq .
+          RENDERED_FILE="${{ steps.render-task.outputs.task-definition }}"
+          
+          echo "✅ Task definition file content:"
+          cat "$RENDERED_FILE" | jq .
 
           echo "📝 Registering task definition with ECS..."
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://rendered-task-def.json \
+            --cli-input-json file://$RENDERED_FILE \
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
           echo "✅ Registered new task definition ARN: $NEW_TASK_DEF_ARN"
-          echo "task-definition-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_ENV
+          echo "task-definition-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
       - name: Create appspec.yaml
         run: |
