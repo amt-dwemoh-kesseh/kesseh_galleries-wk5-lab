@@ -1,0 +1,162 @@
+name: Manual Blue-Green Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+      image_tag:
+        description: 'Docker image tag to deploy (leave empty for latest)'
+        required: false
+        type: string
+      deployment_config:
+        description: 'CodeDeploy deployment configuration'
+        required: true
+        default: 'CodeDeployDefault.ECSBlueGreenCanary10Percent5Minutes'
+        type: choice
+        options:
+        - CodeDeployDefault.ECSBlueGreenCanary10Percent5Minutes
+        - CodeDeployDefault.ECSBlueGreenLinear10PercentEvery1Minutes
+        - CodeDeployDefault.ECSBlueGreenLinear10PercentEvery3Minutes
+        - CodeDeployDefault.ECSBlueGreenAllAtOnce
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: kesseh-galleries
+  ECS_SERVICE: kesseh-galleries-service
+  ECS_CLUSTER: kesseh-galleries-cluster
+  ECS_TASK_DEFINITION: kesseh-galleries-task
+  CONTAINER_NAME: kesseh-galleries
+  CODEDEPLOY_APPLICATION: kesseh-galleries-app
+  CODEDEPLOY_DEPLOYMENT_GROUP: kesseh-galleries-dg
+
+jobs:
+  manual-blue-green-deploy:
+    name: Manual Blue-Green Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Determine image to deploy
+      id: image-info
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        INPUT_TAG: ${{ github.event.inputs.image_tag }}
+      run: |
+        if [ -n "$INPUT_TAG" ]; then
+          IMAGE_TAG="$INPUT_TAG"
+        else
+          IMAGE_TAG="latest"
+        fi
+        
+        FULL_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+        echo "image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+        echo "tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        
+        echo "🚀 Deploying image: $FULL_IMAGE"
+        echo "⚙️  Deployment config: ${{ github.event.inputs.deployment_config }}"
+
+    - name: Download current task definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition $ECS_TASK_DEFINITION \
+          --query taskDefinition \
+          --region $AWS_REGION > task-definition.json
+
+    - name: Update task definition with new image
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ env.CONTAINER_NAME }}
+        image: ${{ steps.image-info.outputs.image }}
+
+    - name: Register new task definition
+      id: register-task-def
+      run: |
+        NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+          --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+        
+        echo "new-task-def-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
+        echo "✅ New task definition registered: $NEW_TASK_DEF_ARN"
+
+    - name: Create CodeDeploy appspec.yaml
+      run: |
+        cat > appspec.yaml << EOF
+        version: 0.0
+        Resources:
+          - TargetService:
+              Type: AWS::ECS::Service
+              Properties:
+                TaskDefinition: "${{ steps.register-task-def.outputs.new-task-def-arn }}"
+                LoadBalancerInfo:
+                  ContainerName: "${{ env.CONTAINER_NAME }}"
+                  ContainerPort: 3001
+                PlatformVersion: "LATEST"
+        Hooks:
+          - BeforeInstall: "BeforeInstall"
+          - AfterInstall: "AfterInstall"
+          - AfterAllowTestTraffic: "AfterAllowTestTraffic"
+          - BeforeAllowTraffic: "BeforeAllowTraffic"
+          - AfterAllowTraffic: "AfterAllowTraffic"
+        EOF
+
+    - name: Deploy via CodeDeploy
+      id: deploy
+      run: |
+        # Create deployment package
+        zip -r deployment-package.zip appspec.yaml
+        aws s3 cp deployment-package.zip s3://kesseh-galleries-codedeploy-artifacts/deployments/manual-deployment-$(date +%s).zip
+        
+        # Start deployment
+        DEPLOYMENT_ID=$(aws deploy create-deployment \
+          --application-name $CODEDEPLOY_APPLICATION \
+          --deployment-group-name $CODEDEPLOY_DEPLOYMENT_GROUP \
+          --s3-location bucket=kesseh-galleries-codedeploy-artifacts,key=deployments/manual-deployment-$(date +%s).zip,bundleType=zip \
+          --deployment-config-name ${{ github.event.inputs.deployment_config }} \
+          --description "Manual Blue-Green deployment - ${{ github.event.inputs.environment }}" \
+          --query 'deploymentId' \
+          --output text)
+        
+        echo "deployment-id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+        echo "✅ Manual deployment started with ID: $DEPLOYMENT_ID"
+
+    - name: Wait for deployment completion
+      run: |
+        DEPLOYMENT_ID="${{ steps.deploy.outputs.deployment-id }}"
+        
+        aws deploy wait deployment-successful \
+          --deployment-id $DEPLOYMENT_ID \
+          --cli-read-timeout 1800
+        
+        echo "✅ Manual Blue-Green deployment completed successfully!"
+
+    - name: Deployment Summary
+      run: |
+        echo "✅ Manual Blue-Green deployment completed!"
+        echo "🏷️  Image Tag: ${{ steps.image-info.outputs.tag }}"
+        echo "📦 Full Image: ${{ steps.image-info.outputs.image }}"
+        echo "🌍 Environment: ${{ github.event.inputs.environment }}"
+        echo "⚙️  Config: ${{ github.event.inputs.deployment_config }}"
+        echo "🆔 Deployment ID: ${{ steps.deploy.outputs.deployment-id }}"
