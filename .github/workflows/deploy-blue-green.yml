@@ -147,7 +147,7 @@ jobs:
             --application-name $CODEDEPLOY_APPLICATION \
             --deployment-group-name $CODEDEPLOY_DEPLOYMENT_GROUP \
             --s3-location bucket=$S3_BUCKET,key=deployments/deployment-${{ github.sha }}.zip,bundleType=zip \
-            --deployment-config-name CodeDeployDefault.ECSBlueGreenCanary10Percent5Minutes \
+            --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
             --query deploymentId --output text)
           echo "deployment-id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
           echo "Deployment started: $DEPLOYMENT_ID"
