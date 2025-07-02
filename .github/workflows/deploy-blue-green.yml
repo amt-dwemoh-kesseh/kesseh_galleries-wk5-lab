@@ -134,6 +134,12 @@ jobs:
                     ContainerName: "${{ env.CONTAINER_NAME }}"
                     ContainerPort: 3001
                   PlatformVersion: "LATEST"
+          Hooks:
+            - AfterAllowTraffic: "AfterAllowTrafficHook"
+          BlueGreenDeploymentConfiguration:
+            TerminateBlueInstancesOnDeploymentSuccess:
+              Action: TERMINATE
+              TerminationWaitTimeInMinutes: 5
           EOF
 
           echo "✅ appspec.yaml created:"
@@ -153,12 +159,10 @@ jobs:
             --s3-location bucket=$S3_BUCKET,key=deployments/deployment-${{ github.sha }}.zip,bundleType=zip \
             --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
             --auto-rollback-configuration enabled=true,events=DEPLOYMENT_FAILURE \
-            --deployment-style deploymentType=BLUE_GREEN,deploymentOption=WITH_TRAFFIC_CONTROL \
-            --blue-green-deployment-configuration "terminateBlueInstancesOnDeploymentSuccess={action=TERMINATE,terminationWaitTimeInMinutes=0}" \
             --query deploymentId --output text)
           echo "deployment-id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
           echo "Deployment started: $DEPLOYMENT_ID"
-
+          
       - name: Wait for Deployment to Complete
         run: |
           aws deploy wait deployment-successful --deployment-id ${{ steps.deploy.outputs.deployment-id }}
