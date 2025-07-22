@@ -105,15 +105,32 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, isUploading,
                   />
                   
                   {/* Overlay */}
-                      <button
-                        onClick={(e) => handleDeleteClick(image, e)}
-                        disabled={isDeleting}
-                        className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors disabled:opacity-50"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
-                    </div>
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImage(image);
+                      }}
+                      className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
+                      title="View"
+                    >
+                      <Eye className="w-4 h-4 text-gray-700" />
+                    </button>
+                    <button
+                      onClick={(e) => handleDownload(image, e)}
+                      className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4 text-blue-600" />
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteClick(image, e)}
+                      disabled={isDeleting}
+                      className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors disabled:opacity-50"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </button>
                   </div>
                   
                   {isDeleting && (
