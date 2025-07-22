@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Calendar, HardDrive } from 'lucide-react';
+import { Trash2, Calendar, HardDrive, Eye, Download } from 'lucide-react';
 import { ImageModal } from './ImageModal';
 
 interface Image {
