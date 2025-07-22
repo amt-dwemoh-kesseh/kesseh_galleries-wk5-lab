@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Download, Eye, Calendar, HardDrive } from 'lucide-react';
+import { Trash2, Calendar, HardDrive } from 'lucide-react';
 import { ImageModal } from './ImageModal';
 
 interface Image {
@@ -105,27 +105,11 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, isUploading,
                   />
                   
                   {/* Overlay */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedImage(image);
-                        }}
-                        className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
-                      >
-                        <Eye className="w-4 h-4 text-gray-700" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDownload(image, e)}
-                        className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
-                      >
-                        <Download className="w-4 h-4 text-gray-700" />
-                      </button>
                       <button
                         onClick={(e) => handleDeleteClick(image, e)}
                         disabled={isDeleting}
                         className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors disabled:opacity-50"
+                        title="Delete"
                       >
                         <Trash2 className="w-4 h-4 text-red-600" />
                       </button>
